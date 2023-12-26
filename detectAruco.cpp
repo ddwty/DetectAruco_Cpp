@@ -8,6 +8,45 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <map>
+#include <mach-o/dyld.h>  // For MacOS
+#include <unistd.h>
+
+
+std::pair<cv::Mat, cv::Mat> loadCameraParameters(const std::string& filename) {
+
+    char path[1024];
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) == 0) {
+        std::cout << "Executable path is: " << path << std::endl;
+    } else {
+        std::cerr << "Buffer too small; need size " << size << std::endl;
+        return {}; // Return an empty pair of cv::Mat objects
+    }
+
+    std::string pathStr = path;
+    std::string directoryPath = pathStr.substr(0, pathStr.find_last_of("/")); // 提取目录路径
+
+    // 改变当前工作目录
+    if (chdir(directoryPath.c_str()) != 0) {
+        std::cerr << "Failed to change directory to " << directoryPath << std::endl;
+        return {}; // Return an empty pair of cv::Mat objects
+    }
+
+    std::cout << "Loading camera parameters from " << filename << std::endl;
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
+
+    if (!fs.isOpened()) {
+        throw std::runtime_error("Could not open the configuration file: " + filename);
+    }
+
+    cv::Mat intrinsic_camera, distortion;
+    fs["cameraMatrix"] >> intrinsic_camera;
+    fs["distCoeffs"] >> distortion;
+
+    return {intrinsic_camera, distortion};
+}
+
+
 
 int main(int argc, char** argv) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -31,32 +70,31 @@ int main(int argc, char** argv) {
     }
 
     
-    // Camera parameters
-    double cx = 655.3664;
-    double cy = 367.5246;
-    double fx = 971.2252;
-    double fy = 970.7470;
-    double k1 = 0.0097;
-    double k2 = -0.00745;
-    double k3 = 0.00;
-    double p1 = 0.00;
-    double p2 = 0.00;
-    // Load camera parameters
-    // cv::Mat intrinsic_camera, distortion;
+    cv::Mat intrinsic_camera, distortion;
+    std::tie(intrinsic_camera, distortion) = loadCameraParameters("camera_params.yml");
+    // std::cout << "intrinsic_camera:\n" << intrinsic_camera << std::endl;
+    // std::cout << "distortion:\n" << distortion << std::endl;
+    
+    // // Camera parameters
+    // double cx = 655.3664;
+    // double cy = 367.5246;
+    // double fx = 971.2252;
+    // double fy = 970.7470;
+    // double k1 = 0.0097;  
+    // double k2 = -0.00745;
+    // double k3 = 0.00;
+    // double p1 = 0.00;
+    // double p2 = 0.00;
+    // // Remove the declaration of 'intrinsic_camera'
+    // // cv::Mat intrinsic_camera, distortion;
 
-    cv::Mat intrinsic_camera = (cv::Mat_<double>(3, 3) << fx, 0, cx, 
-                                                          0, fy, cy, 
-                                                          0, 0, 1);
+    // // Modify the existing declaration to initialize the matrix directly
+    // cv::Mat intrinsic_camera = (cv::Mat_<double>(3, 3) << fx, 0, cx, 
+    //                                                       0, fy, cy, 
+    //                                                       0, 0, 1);
 
-    // Create the distortion coefficients matrix
-    cv::Mat distortion = (cv::Mat_<double>(1, 5) << k1, k2, p1, p2, k3);
-
-
-    // Replace with your actual camera parameters file path
-    // cv::FileStorage fs("camera_params.yml", cv::FileStorage::READ); 
-    // fs["camera_matrix"] >> intrinsic_camera;
-    // fs["distortion_coefficients"] >> distortion;
-    // fs.release();
+    // // Create the distortion coefficients matrix
+    // cv::Mat distortion = (cv::Mat_<double>(1, 5) << k1, k2, p1, p2, k3);
 
    
     cv::Ptr<cv::aruco::Dictionary> arucoDict = cv::makePtr<cv::aruco::Dictionary>(cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_50));
@@ -148,3 +186,4 @@ int main(int argc, char** argv) {
     cv::destroyAllWindows();
     return 0;
 }
+

@@ -71,6 +71,7 @@
         "compare": "cpp",
         "concepts": "cpp",
         "algorithm": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "filesystem": "cpp"
     }
 }
